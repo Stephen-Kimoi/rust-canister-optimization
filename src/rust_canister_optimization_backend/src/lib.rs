@@ -10,6 +10,7 @@ use candid::{CandidType, Decode, Encode, Principal };
 use std::{borrow::Cow, cell::RefCell}; 
 use ic_cdk::{pre_upgrade, query, update}; 
 use std::collections::BTreeMap; 
+use std::sync::Mutex; 
 
 type Memory = VirtualMemory<DefaultMemoryImpl>; 
 type IdCell = Cell<u64, Memory>; 
@@ -142,6 +143,10 @@ thread_local! {
     // static ITEMS: RefCell<ItemStore> = RefCell::default(); 
 }
 
+lazy_static! {
+    static ref INSTRUCTIONS_CONSUMED: Mutex<u64> = Mutex::new(0); 
+}
+
 // For erasing the canister's data when re-deploying
 #[pre_upgrade]
 fn pre_upgrade() {
@@ -166,6 +171,7 @@ enum Error {
 // Function for registering users 
 #[update]
 fn register_user(new_user: NewUser) -> Result<User, Error> {
+    let start = ic_cdk::api::instruction_counter(); 
     if new_user.email.is_empty() || new_user.username.is_empty() || new_user.role == UserRole::Empty {
         return Err(Error::FieldEmpty { msg: format!("Kindly ensure all fields aren't empty") })
     } 
@@ -177,7 +183,7 @@ fn register_user(new_user: NewUser) -> Result<User, Error> {
     })
     .expect("cannot increment id counter");
 
-    USERS.with(|users| {
+    let result = USERS.with(|users| {
        let mut users_borrowed = users.borrow_mut(); 
        let principal_id_of_caller = ic_cdk::caller();  
 
@@ -195,8 +201,13 @@ fn register_user(new_user: NewUser) -> Result<User, Error> {
 
         users_borrowed.insert(principal_id_of_caller, user.clone()); 
         Ok(user)
-    }) 
+    }); 
 
+    let end = ic_cdk::api::instruction_counter(); 
+    let instructions_consumed = end - start;
+    println!("Instructions consumed: {}", instructions_consumed);
+    
+    result 
 }
 
 // Function for listing item
