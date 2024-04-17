@@ -6,19 +6,8 @@ type Error = variant {
   Unauthorized : record { msg : text };
   UserExists : record { msg : text };
 };
-type Item = record {
-  id : nat64;
-  name : text;
-  sold : bool;
-  description : text;
-  principal_id : principal;
-  amount : nat64;
-};
-type NewItem = record { name : text; description : text; amount : nat64 };
 type NewUser = record { username : text; role : UserRole; email : text };
-type Result = variant { Ok; Err : Error };
-type Result_1 = variant { Ok : Item; Err : Error };
-type Result_2 = variant { Ok : User; Err : Error };
+type Result = variant { Ok : User; Err : Error };
 type User = record {
   id : nat64;
   username : text;
@@ -28,13 +17,6 @@ type User = record {
 };
 type UserRole = variant { Empty; Buyer; Seller };
 service : {
-  delete_item : (nat64) -> (Result);
   display_instructions_consumed : () -> (nat64) query;
-  get_sellers_and_items : () -> (
-      vec record { text; text; principal; vec Item },
-    ) query;
-  list_item : (NewItem) -> (Result_1);
-  register_user : (NewUser) -> (Result_2);
-  return_items : () -> (vec Item) query;
-  update_item : (nat64, text, text, nat64) -> (Result);
+  register_user : (NewUser) -> (Result);
 }

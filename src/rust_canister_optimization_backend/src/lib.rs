@@ -9,7 +9,7 @@ use candid::{CandidType, Decode, Encode, Principal };
 // use std::collections::BTreeMap;
 // use serde::de::value::Error;  
 use std::{borrow::Cow, cell::RefCell}; 
-use ic_cdk::{pre_upgrade, query, update}; 
+use ic_cdk::{ query, update}; 
 use std::collections::BTreeMap; 
 use std::sync::Mutex; 
 
@@ -147,16 +147,6 @@ thread_local! {
 
 }
 
-// For erasing the canister's data when re-deploying
-#[pre_upgrade]
-fn pre_upgrade() {
-    ITEM_STORAGE.with(|service| {
-        *service.borrow_mut() = StableBTreeMap::init(
-            MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(1)))
-        );
-    });
-}
-
 // For errors 
 #[derive(candid::CandidType, Deserialize, Serialize)]
 enum Error {
@@ -171,7 +161,8 @@ enum Error {
 // Function for registering users 
 #[update]
 fn register_user(new_user: NewUser) -> Result<User, Error> {
-    let start = ic_cdk::api::instruction_counter(); 
+    let start = ic_cdk::api::instruction_counter(); // Start counting the number of instructions 
+
     if new_user.email.is_empty() || new_user.username.is_empty() || new_user.role == UserRole::Empty {
         return Err(Error::FieldEmpty { msg: format!("Kindly ensure all fields aren't empty") })
     } 
@@ -203,8 +194,10 @@ fn register_user(new_user: NewUser) -> Result<User, Error> {
         Ok(user)
     }); 
 
-    let end = ic_cdk::api::instruction_counter(); 
-    let instructions_consumed = end - start;
+    let end = ic_cdk::api::instruction_counter(); // Stops counting the number of instructions 
+    let instructions_consumed = end - start; // Finds the total instructions consumed 
+
+    // Parses the instructions consumed in the "INSTRUCTIONS_CONSUMED" global variable for purposes of display 
     INSTRUCTIONS_CONSUMED.with(|instructions| {
         let mut instructions = instructions.lock().unwrap(); 
         *instructions = instructions_consumed
@@ -213,6 +206,7 @@ fn register_user(new_user: NewUser) -> Result<User, Error> {
     result 
 }
 
+// Displays the instructions consumed 
 #[query]
 fn display_instructions_consumed() -> u64 {
     INSTRUCTIONS_CONSUMED.with(|instructions| {
@@ -220,124 +214,6 @@ fn display_instructions_consumed() -> u64 {
         *instructions
     })
 }
-
-// Function for listing item
-#[update] 
-fn list_item(new_item: NewItem) -> Result<Item, Error> {
-
-    if new_item.name.is_empty() || new_item.description.is_empty() || new_item.amount == 0 {
-        return Err(Error::FieldEmpty { msg: "Fill in all required fields!".to_string(), }); 
-    }
-
-    let seller_principal_id = ic_cdk::caller(); 
-
-    // Checking if seller is registered 
-    let is_seller_registered = USERS.with(|users| {
-        users.borrow().contains_key(&seller_principal_id)
-    }); 
-
-    if !is_seller_registered {
-        return Err(Error::UserNotRegistered { msg: format!("Seller has not registered!") })
-    }
-
-    let id = ITEM_COUNTER
-        .with(|counter| {
-            let current_value = *counter.borrow().get(); 
-            counter.borrow_mut().set(current_value + 1)
-        }) 
-        .expect("Cannot increament ID counter"); 
-
-    let item = Item {
-        id, 
-        name: new_item.name, 
-        description: new_item.description, 
-        amount: new_item.amount,  
-        principal_id: seller_principal_id,
-        sold: false
-    }; 
-    
-    ITEM_STORAGE.with(|service| service.borrow_mut().insert(id, item.clone())); 
-    Ok(item)
-}
-
-// Function for returning the items listed 
-#[query] 
-fn return_items() -> Vec<Item> {
-    ITEM_STORAGE.with(|service| service.borrow().iter().map(|(_, item) | item.clone()).collect())
-}
-
-// Function for deleting the listed item 
-#[update]
-fn delete_item(id: u64) -> Result<(), Error> {
-    let caller = ic_cdk::caller(); 
-    ITEM_STORAGE.with(|storage| {
-        let mut storage = storage.borrow_mut(); 
-        if let Some(item) = storage.get(&id) {
-            if item.principal_id == caller {
-                storage.remove(&id); 
-                Ok(())
-            } else {
-                Err(Error::Unauthorized { msg: format!("Caller is not the owner of item with ID {}", id), })
-            }
-        } else {
-            Err(Error::NotFound { msg: format!("Item with ID {} is not found!", id), })
-        }
-    })
-}
-
-// Function for updating listed item 
-#[update]
-fn update_item(id: u64, new_name: String, new_description: String, new_amount: u64) -> Result<(), Error> {
-   let caller = ic_cdk::caller(); 
-   
-    match _get_item(&id) {
-       Some(mut item) => {
-        if item.principal_id == caller {
-            item.name = new_name; 
-            item.description = new_description; 
-            item.amount = new_amount; 
-
-            ITEM_STORAGE.with(|service| service.borrow_mut().insert(id, item.clone())); 
-            Ok(())
-        } else {
-            Err(Error::Unauthorized { msg: format!("Caller is not owner of item with ID {}", id) })
-        }
-       }
-       None => Err(Error::NotFound { msg: format!("Item with ID {} could not be found!", id) })
-    }
-    
-}
-
-// Function for returning seller and the items they've listed 
-#[query] 
-fn get_sellers_and_items() -> Vec<(String, String, Principal, Vec<Item>)> {
-    let mut result = Vec::new(); 
-
-    USERS.with(|users| {
-        let users_borrowed = users.borrow(); 
-
-        for (principal_id, user) in users_borrowed.iter() {
-            let items = ITEM_STORAGE.with(|items| {
-                let items_borrowed = items.borrow(); 
-
-                items_borrowed.iter() 
-                  .filter(|(_, item)| item.principal_id == *principal_id) 
-                  .map(|(_, item)| item.clone())
-                  .collect::<Vec<Item>>()
-            }); 
-
-            result.push((user.username.clone(), user.email.clone(), *principal_id, items)); 
-        }
-    }); 
-
-    result 
-}
-
-// Helper function to get item ID 
-fn _get_item(item_id: &u64) -> Option<Item> {
-    ITEM_STORAGE.with(|service| service.borrow().get(item_id))
-}
-
 
 // Export Candid interface
 ic_cdk::export_candid!();
