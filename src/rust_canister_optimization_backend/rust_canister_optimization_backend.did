@@ -29,6 +29,7 @@ type User = record {
 type UserRole = variant { Empty; Buyer; Seller };
 service : {
   delete_item : (nat64) -> (Result);
+  display_instructions_consumed : () -> (nat64) query;
   get_sellers_and_items : () -> (
       vec record { text; text; principal; vec Item },
     ) query;

@@ -4,6 +4,7 @@ extern crate serde;
 use ic_stable_structures::{BoundedStorable, Cell, DefaultMemoryImpl, StableBTreeMap, Storable}; 
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager,VirtualMemory}; 
 use candid::{CandidType, Decode, Encode, Principal };
+// use std::borrow::BorrowMut;
 // use std::default;
 // use std::collections::BTreeMap;
 // use serde::de::value::Error;  
@@ -141,10 +142,9 @@ thread_local! {
     static USERS: RefCell<BTreeMap<Principal, User>> = RefCell::default(); 
 
     // static ITEMS: RefCell<ItemStore> = RefCell::default(); 
-}
 
-lazy_static! {
-    static ref INSTRUCTIONS_CONSUMED: Mutex<u64> = Mutex::new(0); 
+    static INSTRUCTIONS_CONSUMED: Mutex<u64> = Mutex::new(0); 
+
 }
 
 // For erasing the canister's data when re-deploying
@@ -205,9 +205,20 @@ fn register_user(new_user: NewUser) -> Result<User, Error> {
 
     let end = ic_cdk::api::instruction_counter(); 
     let instructions_consumed = end - start;
-    println!("Instructions consumed: {}", instructions_consumed);
-    
+    INSTRUCTIONS_CONSUMED.with(|instructions| {
+        let mut instructions = instructions.lock().unwrap(); 
+        *instructions = instructions_consumed
+    }); 
+
     result 
+}
+
+#[query]
+fn display_instructions_consumed() -> u64 {
+    INSTRUCTIONS_CONSUMED.with(|instructions| {
+        let instructions = instructions.lock().unwrap(); 
+        *instructions
+    })
 }
 
 // Function for listing item
