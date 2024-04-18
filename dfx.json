@@ -3,7 +3,8 @@
     "rust_canister_optimization_backend": {
       "candid": "src/rust_canister_optimization_backend/rust_canister_optimization_backend.did",
       "package": "rust_canister_optimization_backend",
-      "type": "rust"
+      "type": "rust", 
+      "optimize": "cycles"
     },
     "rust_canister_optimization_frontend": {
       "dependencies": [

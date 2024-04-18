@@ -33,3 +33,23 @@ Line 201:
     }); 
 
 ````
+
+You can also use ``wasm-opt`` package to enable canister optimizations: 
+1. Using “optimize”:”cycles” option, you expect a rough estimate of deceases cycles usage for rust canisters by around 7% 
+
+``` 
+ "optimize": "cycles"
+```
+
+In your dfx file 
+
+2. To optimize the binary size instead, we use “optimize”:”size” option which reduces the binary size by roughly 16% 
+
+```
+“optimize”:”size”
+```
+
+### Resources: 
+- [Official Documentation](https://internetcomputer.org/docs/current/developer-docs/backend/rust/optimizing)
+- [Dfinity Forum](https://forum.dfinity.org/t/canister-optimizer-available-in-dfx-0-14-0/21157)
+- [Performance counter on Dfinity Forum](https://forum.dfinity.org/t/introducing-performance-counter-on-the-internet-computer/14027)
